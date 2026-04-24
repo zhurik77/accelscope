@@ -1,0 +1,37 @@
+name: Benchmark result
+description: Share AccelScope results from your machine
+title: "Benchmark: <CPU/GPU/NPU>"
+labels: ["benchmark"]
+body:
+  - type: input
+    id: cpu
+    attributes:
+      label: CPU
+      placeholder: "Intel Core Ultra 5 125H"
+    validations:
+      required: true
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU
+      placeholder: "Intel Arc integrated graphics"
+  - type: input
+    id: npu
+    attributes:
+      label: NPU
+      placeholder: "Intel AI Boost"
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: "Windows 11"
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Benchmark output
+      description: Paste the Markdown table from benchmark.md.
+      render: markdown
+    validations:
+      required: true

@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "accelscope"
+version = "0.1.0"
+description = "Menu-first CLI for inspecting and benchmarking local AI accelerators across CPU, GPU, and NPU."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+  { name = "AccelScope contributors" }
+]
+dependencies = [
+  "typer>=0.12.5",
+  "rich>=13.7.1",
+  "psutil>=6.0.0",
+]
+
+[project.optional-dependencies]
+openvino = [
+  "numpy>=1.26",
+  "openvino>=2024.6",
+]
+dev = [
+  "pyinstaller>=6.11.0",
+  "pytest>=8.3.0",
+  "ruff>=0.6.0",
+]
+
+[project.scripts]
+accelscope = "ai_pc_kit.cli:main"
+ai-pc = "ai_pc_kit.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ai_pc_kit"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
