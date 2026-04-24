@@ -16,3 +16,9 @@ def test_help_keeps_existing_commands_and_adds_tui() -> None:
     assert "tui" in result.output
     assert "doctor" in result.output
     assert "menu" in result.output
+    assert "profile" in result.output
+    assert "runtimes" in result.output
+    assert "inspect-model" in result.output
+    assert "compatibility" in result.output
+    assert "recommend" in result.output
+    assert "route" in result.output

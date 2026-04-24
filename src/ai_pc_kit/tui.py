@@ -16,6 +16,7 @@ from textual.widgets import (
     DataTable,
     Footer,
     Header,
+    Input,
     Label,
     ListItem,
     ListView,
@@ -120,8 +121,12 @@ class AccelScopeApp(App[None]):
     NAV = (
         ("dashboard", "Dashboard"),
         ("hardware", "Inspect hardware"),
+        ("runtimes", "Runtimes"),
         ("devices", "OpenVINO devices"),
         ("benchmark", "Benchmark"),
+        ("model_inspector", "Model Inspector"),
+        ("compatibility", "Compatibility"),
+        ("recommend", "Recommend"),
         ("models", "Models"),
         ("backends", "Backends"),
         ("reports", "Reports"),
@@ -180,6 +185,15 @@ class AccelScopeApp(App[None]):
                         id="format-select",
                         prompt="Export",
                     )
+                with Horizontal(id="model-controls"):
+                    yield Input(
+                        placeholder="Model path (.onnx or .xml)",
+                        id="model-path",
+                    )
+                    yield Button("Inspect", id="inspect-model", variant="primary")
+                    yield Button("Test", id="test-compatibility")
+                    yield Button("Recommend", id="run-recommend")
+                    yield Button("Export route", id="export-route", variant="success")
                 with Horizontal(id="actions"):
                     yield Button("Refresh", id="refresh")
                     yield Button("Run benchmark", id="run-benchmark", variant="primary")
@@ -214,6 +228,14 @@ class AccelScopeApp(App[None]):
             self.open_reports_folder()
         elif button_id == "details":
             self.show_details()
+        elif button_id == "inspect-model":
+            self.inspect_model_from_input()
+        elif button_id == "test-compatibility":
+            self.compatibility_from_input()
+        elif button_id == "run-recommend":
+            self.recommend_from_input()
+        elif button_id == "export-route":
+            self.export_route_from_input()
 
     def action_dashboard(self) -> None:
         self.show_section("dashboard")
@@ -257,6 +279,7 @@ class AccelScopeApp(App[None]):
         table: bool = False,
         log: bool = False,
         benchmark_controls: bool = False,
+        model_controls: bool = False,
         progress: bool = False,
         actions: Iterable[str] = (),
         interpretation: bool = False,
@@ -266,6 +289,7 @@ class AccelScopeApp(App[None]):
         self.query_one("#benchmark-controls", Horizontal).set_class(
             not benchmark_controls, "hidden"
         )
+        self.query_one("#model-controls", Horizontal).set_class(not model_controls, "hidden")
         self.query_one("#progress", ProgressBar).set_class(not progress, "hidden")
         self.query_one("#interpretation", Static).set_class(not interpretation, "hidden")
         action_ids = set(actions)
@@ -331,6 +355,15 @@ class AccelScopeApp(App[None]):
         )
         self.refresh_devices()
 
+    def show_runtimes(self) -> None:
+        self.current_section = "runtimes"
+        self.configure_view(table=True, actions=("refresh", "details"))
+        self.set_status("Runtime scan is optional-dependency friendly.")
+        self.query_one("#content", Static).update(
+            "[b]Runtimes[/b]\nOpenVINO, ONNX Runtime, CUDA detection and planned runtime paths."
+        )
+        self.refresh_runtimes()
+
     def show_benchmark(self) -> None:
         self.current_section = "benchmark"
         self.configure_view(
@@ -352,6 +385,38 @@ class AccelScopeApp(App[None]):
             self.query_one("#interpretation", Static).update(
                 "No benchmark has been run in this session."
             )
+
+    def show_model_inspector(self) -> None:
+        self.current_section = "model_inspector"
+        self.configure_view(table=True, model_controls=True, actions=("details",))
+        self.set_status("Inspect ONNX or OpenVINO IR metadata.")
+        self.query_one("#content", Static).update(
+            "[b]Model Inspector[/b]\nEnter a .onnx or .xml model path, then choose Inspect."
+        )
+        self.clear_table("Kind", "Name", "Shape", "Type")
+
+    def show_compatibility(self) -> None:
+        self.current_section = "compatibility"
+        self.configure_view(table=True, model_controls=True, actions=("details",))
+        self.set_status("Compile-test OpenVINO CPU/GPU/NPU/AUTO paths.")
+        self.query_one("#content", Static).update(
+            "[b]Compatibility[/b]\nEnter a model path and choose Test."
+        )
+        self.clear_table("Backend", "Device", "Available", "Support", "Reason")
+
+    def show_recommend(self) -> None:
+        self.current_section = "recommend"
+        self.configure_view(
+            table=True,
+            model_controls=True,
+            actions=("details",),
+            interpretation=True,
+        )
+        self.set_status("Recommend a backend/device route for this machine.")
+        self.query_one("#content", Static).update(
+            "[b]Recommend[/b]\nEnter a model path and choose Recommend or Export route."
+        )
+        self.clear_table("Category", "Backend", "Device", "Reason")
 
     def show_models(self) -> None:
         self.current_section = "models"
@@ -448,6 +513,8 @@ class AccelScopeApp(App[None]):
             self.refresh_hardware()
         elif self.current_section == "devices":
             self.refresh_devices()
+        elif self.current_section == "runtimes":
+            self.refresh_runtimes()
         elif self.current_section == "doctor":
             self.refresh_doctor()
         elif self.current_section == "models":
@@ -498,6 +565,26 @@ class AccelScopeApp(App[None]):
             self.set_status("OpenVINO devices refreshed.")
         except Exception as exc:
             self.show_error("Device discovery failed.", exc)
+
+    def refresh_runtimes(self) -> None:
+        try:
+            from ai_pc_kit.runtimes import scan_runtimes
+
+            profile = scan_runtimes()
+            table = self.clear_table("Runtime", "Status", "Version", "Targets", "Hint")
+            for runtime in profile.runtimes:
+                status = "installed" if runtime.installed else runtime.status
+                targets = ", ".join(runtime.devices or runtime.providers)
+                table.add_row(
+                    runtime.key,
+                    status,
+                    runtime.version or "",
+                    targets,
+                    runtime.install_hint or runtime.error or "",
+                )
+            self.set_status("Runtime scan complete.")
+        except Exception as exc:
+            self.show_error("Runtime scan failed.", exc)
 
     def refresh_doctor(self) -> None:
         try:
@@ -664,6 +751,96 @@ class AccelScopeApp(App[None]):
     def show_details(self) -> None:
         detail = self.last_error or "No technical details captured."
         self.query_one("#content", Static).update(f"[b]Technical details[/b]\n{detail}")
+
+    def model_path_from_input(self) -> Path | None:
+        text = self.query_one("#model-path", Input).value.strip().strip('"')
+        if not text:
+            self.query_one("#content", Static).update("Enter a model path first.")
+            return None
+        return Path(text)
+
+    def inspect_model_from_input(self) -> None:
+        path = self.model_path_from_input()
+        if path is None:
+            return
+        try:
+            from ai_pc_kit.model_inspector import inspect_model
+
+            inspection = inspect_model(path)
+            self.query_one("#content", Static).update(
+                f"[b]Model:[/b] {inspection.path}\n"
+                f"Format: {inspection.format}\n"
+                f"Task: {inspection.task.task_guess} ({inspection.task.confidence:.2f})\n"
+                f"Error: {inspection.error or 'none'}"
+            )
+            table = self.clear_table("Kind", "Name", "Shape", "Type")
+            for item in inspection.inputs:
+                table.add_row("input", item.name, "x".join(item.shape), item.dtype or "")
+            for item in inspection.outputs:
+                table.add_row("output", item.name, "x".join(item.shape), item.dtype or "")
+        except Exception as exc:
+            self.show_error("Model inspection failed.", exc)
+
+    def compatibility_from_input(self) -> None:
+        path = self.model_path_from_input()
+        if path is None:
+            return
+        try:
+            from ai_pc_kit.compatibility import check_compatibility
+
+            report = check_compatibility(path)
+            table = self.clear_table("Backend", "Device", "Available", "Support", "Reason")
+            for result in report.results:
+                table.add_row(
+                    result.backend,
+                    result.device,
+                    "yes" if result.available else "no",
+                    result.estimated_support,
+                    result.friendly_reason or result.error_message or "",
+                )
+            self.query_one("#content", Static).update(f"[b]Compatibility:[/b] {path}")
+        except Exception as exc:
+            self.show_error("Compatibility check failed.", exc)
+
+    def recommend_from_input(self) -> None:
+        path = self.model_path_from_input()
+        if path is None:
+            return
+        try:
+            from ai_pc_kit.recommendations import recommend_route
+
+            recommendation = recommend_route(path)
+            table = self.clear_table("Category", "Backend", "Device", "Reason")
+            for label, choice in (
+                ("best_default", recommendation.best_default),
+                ("best_latency", recommendation.best_latency),
+                ("fallback", recommendation.fallback),
+                ("battery_candidate", recommendation.best_battery_candidate),
+            ):
+                if choice:
+                    table.add_row(label, choice.backend, choice.device, choice.reason)
+            for item in recommendation.avoid:
+                table.add_row("avoid", item.backend, item.device, item.reason)
+            self.query_one("#interpretation", Static).update(
+                f"Recommendation confidence: {recommendation.confidence:.2f}"
+            )
+            self.query_one("#content", Static).update(f"[b]Recommendation:[/b] {path}")
+        except Exception as exc:
+            self.show_error("Recommendation failed.", exc)
+
+    def export_route_from_input(self) -> None:
+        path = self.model_path_from_input()
+        if path is None:
+            return
+        try:
+            from ai_pc_kit.recommendations import recommend_route
+            from ai_pc_kit.routing import write_routing_manifest
+
+            output = Path("accelscope.routing.json")
+            write_routing_manifest(output, recommend_route(path))
+            self.query_one("#content", Static).update(f"Wrote routing manifest: {output}")
+        except Exception as exc:
+            self.show_error("Routing manifest export failed.", exc)
 
     def show_error(self, title: str, exc: BaseException) -> None:
         self.last_error = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))

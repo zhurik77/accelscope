@@ -16,9 +16,13 @@ screen action, E to export, D for Doctor, and Q to quit.
 
 - Dashboard: CPU, GPU, NPU, RAM, OS, Python, OpenVINO status, and detected runtime devices.
 - Inspect hardware: reuses `accelscope inspect` logic and can export `reports/hardware-latest.json`.
+- Runtimes: scans OpenVINO, optional ONNX Runtime providers, CUDA detection and planned runtimes.
 - OpenVINO devices: shows CPU, GPU, NPU and AUTO visibility from the OpenVINO runtime.
 - Benchmark: downloads/checks a known-good model, compares devices, streams logs, shows progress,
   and exports Markdown/JSON reports.
+- Model Inspector: accepts a model path and inspects ONNX/OpenVINO IR metadata.
+- Compatibility: accepts a model path and compile-tests OpenVINO CPU/GPU/NPU/AUTO.
+- Recommend: accepts a model path and produces a backend/device route recommendation.
 - Models: lists built-in model templates and cache status.
 - Backends: shows OpenVINO as the current path and labels ONNX Runtime, DirectML, CUDA and ROCm as
   planned unless implemented.

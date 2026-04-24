@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import sys
 from typing import Optional
@@ -114,6 +115,152 @@ def doctor() -> None:
             console.print(f"[dim]{openvino.error}[/dim]")
     elif "NPU" not in openvino.devices:
         console.print("[yellow]Warning:[/yellow] no OpenVINO NPU device is visible.")
+
+
+@app.command("profile")
+def profile(
+    json_output: bool = typer.Option(False, "--json", help="Print normalized JSON."),
+) -> None:
+    """Scan the normalized AI PC hardware capability profile."""
+    from ai_pc_kit.capabilities import collect_capabilities
+
+    capability = collect_capabilities()
+    if json_output:
+        console.print(json.dumps(capability.to_dict(), ensure_ascii=False, indent=2))
+        return
+
+    table = Table(title="AI PC Capability Profile")
+    table.add_column("Area")
+    table.add_column("Value")
+    table.add_column("Notes")
+    table.add_row("OS", capability.system.windows_version or capability.system.os_name, capability.system.os_build or "")
+    table.add_row("Architecture", capability.system.architecture, "")
+    table.add_row("Python", capability.system.python_version, f"AccelScope {capability.system.accelscope_version}")
+    table.add_row("Power", capability.system.power_mode or "unknown", capability.system.battery_status or "")
+    table.add_row(
+        "CPU",
+        capability.cpu.name if capability.cpu and capability.cpu.name else "unknown",
+        capability.cpu.vendor if capability.cpu else "",
+    )
+    for gpu in capability.gpus:
+        table.add_row("GPU", gpu.name, gpu.vendor or "unknown")
+    for npu in capability.npus:
+        table.add_row("NPU", npu.name, npu.vendor or "unknown")
+    table.add_row(
+        "Memory",
+        f"{capability.memory.total_gb} GB total / {capability.memory.available_gb} GB available",
+        capability.memory.type or "type unknown",
+    )
+    console.print(table)
+    for warning in capability.warnings:
+        console.print(f"[yellow]Warning:[/yellow] {warning}")
+
+
+@app.command("runtimes")
+def runtimes(
+    json_output: bool = typer.Option(False, "--json", help="Print normalized JSON."),
+) -> None:
+    """Scan installed and planned local AI runtimes/providers."""
+    from ai_pc_kit.runtimes import scan_runtimes
+
+    profile = scan_runtimes()
+    if json_output:
+        console.print(json.dumps(profile.to_dict(), ensure_ascii=False, indent=2))
+        return
+
+    table = Table(title="Runtime Capability Profile")
+    table.add_column("Runtime")
+    table.add_column("Status")
+    table.add_column("Version")
+    table.add_column("Devices/providers")
+    table.add_column("Hint")
+    for runtime in profile.runtimes:
+        status = "installed" if runtime.installed else runtime.status
+        targets = ", ".join(runtime.devices or runtime.providers) or ""
+        table.add_row(runtime.key, status, runtime.version or "", targets, runtime.install_hint or "")
+    console.print(table)
+
+
+@app.command("inspect-model")
+def inspect_model_command(
+    path: Path = typer.Argument(..., help="Path to .onnx or OpenVINO .xml model."),
+    json_output: bool = typer.Option(False, "--json", help="Print normalized JSON."),
+) -> None:
+    """Inspect ONNX or OpenVINO IR model metadata."""
+    from ai_pc_kit.model_inspector import inspect_model
+
+    inspection = inspect_model(path)
+    if json_output:
+        console.print(json.dumps(inspection.to_dict(), ensure_ascii=False, indent=2))
+        return
+    _render_model_inspection(inspection)
+
+
+@app.command("compatibility")
+def compatibility_command(
+    path: Path = typer.Argument(..., help="Path to .onnx or OpenVINO .xml model."),
+    json_output: bool = typer.Option(False, "--json", help="Print normalized JSON."),
+) -> None:
+    """Check which OpenVINO device paths can compile a model."""
+    from ai_pc_kit.compatibility import check_compatibility
+
+    report = check_compatibility(path)
+    if json_output:
+        console.print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+        return
+    table = Table(title=f"Compatibility: {path.name}")
+    table.add_column("Backend")
+    table.add_column("Device")
+    table.add_column("Available")
+    table.add_column("Support")
+    table.add_column("Reason")
+    for result in report.results:
+        table.add_row(
+            result.backend,
+            result.device,
+            "yes" if result.available else "no",
+            result.estimated_support,
+            result.friendly_reason or result.error_message or "",
+        )
+    console.print(table)
+
+
+@app.command("recommend")
+def recommend_command(
+    path: Path = typer.Argument(..., help="Path to .onnx or OpenVINO .xml model."),
+    benchmark: bool = typer.Option(False, "--benchmark", help="Run a short benchmark on working paths."),
+    iterations: int = typer.Option(5, "--iterations", "-n", min=1, help="Benchmark iterations."),
+    json_output: bool = typer.Option(False, "--json", help="Print normalized JSON."),
+) -> None:
+    """Recommend the best backend/device route for a model on this machine."""
+    from ai_pc_kit.recommendations import recommend_route
+
+    recommendation = recommend_route(path, run_benchmark=benchmark, iterations=iterations)
+    if json_output:
+        console.print(json.dumps(recommendation.to_dict(), ensure_ascii=False, indent=2))
+        return
+    _render_recommendation(recommendation)
+
+
+@app.command("route")
+def route_command(
+    path: Path = typer.Argument(..., help="Path to .onnx or OpenVINO .xml model."),
+    output: Path = typer.Option(
+        Path("accelscope.routing.json"),
+        "--output",
+        "-o",
+        help="Write routing manifest JSON.",
+    ),
+    benchmark: bool = typer.Option(False, "--benchmark", help="Run a short benchmark first."),
+    iterations: int = typer.Option(5, "--iterations", "-n", min=1, help="Benchmark iterations."),
+) -> None:
+    """Export a routing manifest for app developers."""
+    from ai_pc_kit.recommendations import recommend_route
+    from ai_pc_kit.routing import write_routing_manifest
+
+    recommendation = recommend_route(path, run_benchmark=benchmark, iterations=iterations)
+    write_routing_manifest(output, recommendation)
+    console.print(f"Wrote routing manifest: [bold]{output}[/bold]")
 
 
 @app.command()
@@ -384,6 +531,75 @@ def backends_info(
     console.print(backend.scope)
     console.print(f"Devices/providers: {', '.join(backend.devices)}")
     console.print(f"Notes: {backend.notes}")
+
+
+def _render_model_inspection(inspection: object) -> None:
+    console.print(f"[bold]Model:[/bold] {inspection.path}")
+    console.print(f"Format: {inspection.format}")
+    console.print(f"Size: {inspection.size_bytes or 0} bytes")
+    if inspection.error:
+        console.print(f"[yellow]{inspection.error}[/yellow]")
+    if inspection.opset:
+        console.print(f"Opset: {inspection.opset}")
+    console.print(
+        f"Task guess: [bold]{inspection.task.task_guess}[/bold] "
+        f"(confidence {inspection.task.confidence:.2f})"
+    )
+    for signal in inspection.task.signals:
+        console.print(f"- {signal}")
+
+    table = Table(title="Model IO")
+    table.add_column("Kind")
+    table.add_column("Name")
+    table.add_column("Shape")
+    table.add_column("Type")
+    for item in inspection.inputs:
+        table.add_row("input", item.name, "x".join(item.shape), item.dtype or "")
+    for item in inspection.outputs:
+        table.add_row("output", item.name, "x".join(item.shape), item.dtype or "")
+    console.print(table)
+
+    if inspection.operator_types:
+        ops = ", ".join(f"{key}:{value}" for key, value in inspection.operator_types.items())
+        console.print(f"Operators: {ops}")
+
+
+def _render_recommendation(recommendation: object) -> None:
+    console.print("[bold]Recommended route[/bold]")
+    if recommendation.best_default is None:
+        console.print("[yellow]No working route found.[/yellow]")
+    else:
+        console.print(f"Backend: [bold]{recommendation.best_default.backend}[/bold]")
+        console.print(f"Device: [bold]{recommendation.best_default.device}[/bold]")
+        console.print(f"Reason: {recommendation.best_default.reason}")
+
+    if recommendation.fallback:
+        console.print(
+            f"Fallback: {recommendation.fallback.backend} {recommendation.fallback.device} "
+            f"- {recommendation.fallback.reason}"
+        )
+
+    if recommendation.avoid:
+        console.print("[bold]Avoid[/bold]")
+        for item in recommendation.avoid:
+            console.print(f"- {item.backend} {item.device}: {item.reason}")
+
+    console.print(f"Recommendation confidence: [bold]{recommendation.confidence:.2f}[/bold]")
+    for warning in recommendation.warnings:
+        console.print(f"[yellow]Warning:[/yellow] {warning}")
+
+    if recommendation.benchmarks:
+        table = Table(title="Benchmark observations")
+        table.add_column("Device")
+        table.add_column("Status")
+        table.add_column("Average latency")
+        for result in recommendation.benchmarks:
+            table.add_row(
+                result.device,
+                "ok" if result.error is None else "failed",
+                "" if result.average_ms is None else f"{result.average_ms:.2f} ms",
+            )
+        console.print(table)
 
 
 def main() -> None:

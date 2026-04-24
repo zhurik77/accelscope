@@ -1,9 +1,11 @@
 # AccelScope
 
-**AccelScope** is a TUI-first diagnostic app for discovering and benchmarking local AI hardware.
+**AccelScope** is an AI PC capability profiler and model router for Windows laptops.
 
-Open it, use arrow keys or the mouse, and see what your machine can actually run across `CPU`,
-`GPU`, `NPU`, and runtime backends.
+It answers two practical questions:
+
+- What local AI hardware and runtimes does this machine actually expose?
+- Which backend/device route should this model use: `CPU`, `GPU`, `NPU`, or `AUTO`?
 
 ```powershell
 .\accelscope.exe
@@ -15,6 +17,10 @@ Benchmark first. Don't guess.
 
 [ Dashboard          ]  CPU / GPU / NPU summary
 [ Inspect hardware   ]  Windows hardware inventory
+[ Runtimes           ]  OpenVINO / ONNX Runtime / CUDA visibility
+[ Model Inspector    ]  ONNX / OpenVINO IR metadata
+[ Compatibility      ]  compile-test CPU / GPU / NPU / AUTO
+[ Recommend          ]  suggested backend/device route
 [ OpenVINO devices   ]  CPU / GPU / NPU / AUTO visibility
 [ Benchmark          ]  model, device, iterations, export
 [ Models             ]  known-good model templates
@@ -32,7 +38,10 @@ Modern laptops ship with AI accelerators, but it is still weirdly hard to answer
 - Can I export a benchmark report that other developers can compare?
 
 AccelScope gives you a practical first answer from the terminal. It does not assume the NPU is
-always fastest. It compares the paths on a real model and shows the result.
+always fastest. It profiles the machine, checks runtime visibility, inspects the model, tests
+compatibility, and can export a routing manifest for your app.
+
+Core message: **Benchmark first. Don't guess.**
 
 ## Current Focus
 
@@ -72,6 +81,15 @@ The fastest non-interactive benchmark:
 
 ```powershell
 accelscope benchmark object-detection --iterations 10 --output benchmark.md
+```
+
+Inspect a model and produce a route recommendation:
+
+```powershell
+accelscope inspect-model .\models\model.xml
+accelscope compatibility .\models\model.xml
+accelscope recommend .\models\model.xml --benchmark --iterations 5
+accelscope route .\models\model.xml --output accelscope.routing.json
 ```
 
 ## Example Result
@@ -128,6 +146,40 @@ Run diagnostics:
 accelscope doctor
 ```
 
+Scan normalized hardware capabilities:
+
+```powershell
+accelscope profile
+accelscope profile --json
+```
+
+Scan runtimes/providers:
+
+```powershell
+accelscope runtimes
+accelscope runtimes --json
+```
+
+Inspect model metadata:
+
+```powershell
+accelscope inspect-model .\models\model.onnx
+accelscope inspect-model .\models\model.xml --json
+```
+
+Test model compatibility:
+
+```powershell
+accelscope compatibility .\models\model.xml
+```
+
+Recommend and export a route:
+
+```powershell
+accelscope recommend .\models\model.xml --benchmark --iterations 5
+accelscope route .\models\model.xml --output accelscope.routing.json
+```
+
 Download and benchmark the default model:
 
 ```powershell
@@ -182,6 +234,11 @@ See [docs/BUILD.md](docs/BUILD.md).
 
 - [Quickstart](docs/QUICKSTART.md)
 - [Textual TUI](docs/TUI.md)
+- [Capability profiler](docs/CAPABILITY_PROFILER.md)
+- [Model inspector](docs/MODEL_INSPECTOR.md)
+- [Recommendation engine](docs/RECOMMENDATION_ENGINE.md)
+- [Routing manifest](docs/ROUTING_MANIFEST.md)
+- [Model packs](docs/MODEL_PACKS.md)
 - [Build](docs/BUILD.md)
 - [Product shape](docs/PRODUCT.md)
 - [Example benchmark](examples/benchmark-intel-core-ultra-5-125h.md)
@@ -192,6 +249,7 @@ See [docs/BUILD.md](docs/BUILD.md).
 - ONNX Runtime provider discovery and runner
 - DirectML smoke tests for Windows GPUs
 - More known-good benchmark models
+- Model packs for vision, office AI, creator, and developer workflows
 - Community benchmark table through pull requests
 - HTML report output
 - Optional MCP tools for local OCR, embeddings, and vision tasks
