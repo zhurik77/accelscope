@@ -31,7 +31,8 @@ $PyInstallerArgs = @(
     "--name", $Name,
     "--onefile",
     "--clean",
-    "--paths", ".\src"
+    "--paths", ".\src",
+    "--collect-all", "textual"
 )
 
 if ($IncludeOpenVINO) {

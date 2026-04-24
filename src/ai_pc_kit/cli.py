@@ -6,6 +6,7 @@ from typing import Optional
 
 import typer
 from rich.console import Console
+from rich.table import Table
 
 from ai_pc_kit.backends import get_backend, list_backends
 from ai_pc_kit.catalog import get_model, list_models
@@ -37,6 +38,85 @@ def inspect(
 
 
 @app.command()
+def tui() -> None:
+    """Open the keyboard and mouse driven terminal UI."""
+    from ai_pc_kit.tui import run_tui
+
+    run_tui()
+
+
+@app.command()
+def menu(
+    classic: bool = typer.Option(
+        False,
+        "--classic",
+        help="Open the legacy number-based menu instead of the Textual TUI.",
+    ),
+) -> None:
+    """Open an interactive menu."""
+    if classic:
+        run_interactive(console)
+        return
+
+    from ai_pc_kit.tui import run_tui
+
+    run_tui()
+
+
+@app.command()
+def doctor() -> None:
+    """Run a basic local AI runtime diagnostic."""
+    report = collect_report()
+    openvino = report.openvino
+
+    table = Table(title="AccelScope Doctor")
+    table.add_column("Check")
+    table.add_column("Result")
+    table.add_column("Recommendation")
+
+    table.add_row("OS", report.os, "ok")
+    table.add_row("Python", report.python, "Use Python 3.10-3.12 for the OpenVINO path.")
+    table.add_row(
+        "OpenVINO",
+        openvino.version or ("installed" if openvino.installed else "missing"),
+        "Install with: pip install 'accelscope[openvino]'" if not openvino.installed else "ok",
+    )
+    table.add_row(
+        "OpenVINO devices",
+        ", ".join(openvino.devices) or "none",
+        "Run accelscope devices for the raw runtime view.",
+    )
+    table.add_row(
+        "CPU",
+        report.cpu.name if report.cpu and report.cpu.name else "unknown",
+        "CPU is the baseline path.",
+    )
+    table.add_row(
+        "GPU",
+        ", ".join(gpu.name for gpu in report.gpus) or "none detected",
+        "Include GPU in every comparison if present.",
+    )
+    table.add_row(
+        "NPU",
+        ", ".join(npu.name for npu in report.npus) or "none detected",
+        "If NPU is present in Device Manager but missing here, check driver/runtime support.",
+    )
+    table.add_row(
+        "Model cache",
+        "present" if Path("models").exists() else "empty",
+        "Next: accelscope benchmark object-detection --iterations 10",
+    )
+
+    console.print(table)
+    if not openvino.installed:
+        console.print("[yellow]Warning:[/yellow] OpenVINO is missing or failed to load.")
+        if openvino.error:
+            console.print(f"[dim]{openvino.error}[/dim]")
+    elif "NPU" not in openvino.devices:
+        console.print("[yellow]Warning:[/yellow] no OpenVINO NPU device is visible.")
+
+
+@app.command()
 def devices() -> None:
     """List OpenVINO runtime devices if OpenVINO is installed."""
     report = collect_report(include_system=False)
@@ -54,7 +134,9 @@ def devices() -> None:
 
 @app.command("run")
 def run(
-    model: Path = typer.Argument(..., exists=True, readable=True, help="Path to an OpenVINO .xml model."),
+    model: Path = typer.Argument(
+        ..., exists=True, readable=True, help="Path to an OpenVINO .xml model."
+    ),
     input_file: Optional[Path] = typer.Option(
         None,
         "--input",
@@ -63,8 +145,12 @@ def run(
         readable=True,
         help="Optional .npy input tensor. If omitted, a zero tensor is generated.",
     ),
-    device: str = typer.Option("AUTO", "--device", "-d", help="OpenVINO device: CPU, GPU, NPU, or AUTO."),
-    iterations: int = typer.Option(10, "--iterations", "-n", min=1, help="Number of inference runs."),
+    device: str = typer.Option(
+        "AUTO", "--device", "-d", help="OpenVINO device: CPU, GPU, NPU, or AUTO."
+    ),
+    iterations: int = typer.Option(
+        10, "--iterations", "-n", min=1, help="Number of inference runs."
+    ),
 ) -> None:
     """Run a simple benchmark against an OpenVINO IR model."""
     result = run_model(model=model, input_file=input_file, device=device, iterations=iterations)
@@ -76,7 +162,9 @@ def run(
 
 @app.command("compare")
 def compare(
-    model: Path = typer.Argument(..., exists=True, readable=True, help="Path to an OpenVINO .xml model."),
+    model: Path = typer.Argument(
+        ..., exists=True, readable=True, help="Path to an OpenVINO .xml model."
+    ),
     input_file: Optional[Path] = typer.Option(
         None,
         "--input",
@@ -90,7 +178,9 @@ def compare(
         "--devices",
         help="Comma-separated OpenVINO devices to test.",
     ),
-    iterations: int = typer.Option(10, "--iterations", "-n", min=1, help="Number of inference runs."),
+    iterations: int = typer.Option(
+        10, "--iterations", "-n", min=1, help="Number of inference runs."
+    ),
     json_output: bool = typer.Option(False, "--json", help="Print a machine-readable JSON report."),
     output: Optional[Path] = typer.Option(
         None,
@@ -137,14 +227,20 @@ def compare(
 
 @app.command("benchmark")
 def benchmark(
-    key: str = typer.Argument("object-detection", help="Model task key from `accelscope models list`."),
-    output_dir: Path = typer.Option(Path("models"), "--model-dir", help="Directory for downloaded models."),
+    key: str = typer.Argument(
+        "object-detection", help="Model task key from `accelscope models list`."
+    ),
+    output_dir: Path = typer.Option(
+        Path("models"), "--model-dir", help="Directory for downloaded models."
+    ),
     devices: str = typer.Option(
         "CPU,GPU,NPU,AUTO",
         "--devices",
         help="Comma-separated OpenVINO devices to test.",
     ),
-    iterations: int = typer.Option(10, "--iterations", "-n", min=1, help="Number of inference runs."),
+    iterations: int = typer.Option(
+        10, "--iterations", "-n", min=1, help="Number of inference runs."
+    ),
     output: Optional[Path] = typer.Option(
         Path("benchmark.md"),
         "--output",
@@ -212,7 +308,9 @@ def models_list() -> None:
 
 
 @models_app.command("info")
-def models_info(key: str = typer.Argument(..., help="Model task key from `accelscope models list`.")) -> None:
+def models_info(
+    key: str = typer.Argument(..., help="Model task key from `accelscope models list`."),
+) -> None:
     """Show details for a model task template."""
     entry = get_model(key)
     if entry is None:
@@ -231,8 +329,12 @@ def models_info(key: str = typer.Argument(..., help="Model task key from `accels
 @models_app.command("download")
 def models_download(
     key: str = typer.Argument(..., help="Model task key from `accelscope models list`."),
-    output_dir: Path = typer.Option(Path("models"), "--output-dir", "-o", help="Model output directory."),
-    convert: bool = typer.Option(True, "--convert/--no-convert", help="Convert to OpenVINO IR when needed."),
+    output_dir: Path = typer.Option(
+        Path("models"), "--output-dir", "-o", help="Model output directory."
+    ),
+    convert: bool = typer.Option(
+        True, "--convert/--no-convert", help="Convert to OpenVINO IR when needed."
+    ),
 ) -> None:
     """Download a known-good model for a task template."""
     try:
@@ -269,7 +371,9 @@ def backends_list() -> None:
 
 
 @backends_app.command("info")
-def backends_info(key: str = typer.Argument(..., help="Backend key from `accelscope backends list`.")) -> None:
+def backends_info(
+    key: str = typer.Argument(..., help="Backend key from `accelscope backends list`."),
+) -> None:
     """Show backend details."""
     backend = get_backend(key)
     if backend is None:
@@ -284,7 +388,9 @@ def backends_info(key: str = typer.Argument(..., help="Backend key from `accelsc
 
 def main() -> None:
     if len(sys.argv) == 1:
-        run_interactive(console)
+        from ai_pc_kit.tui import run_tui
+
+        run_tui()
         return
 
     app()

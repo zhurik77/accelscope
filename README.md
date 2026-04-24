@@ -1,22 +1,25 @@
 # AccelScope
 
-**AccelScope** is a menu-first CLI for discovering and benchmarking local AI hardware.
+**AccelScope** is a TUI-first diagnostic app for discovering and benchmarking local AI hardware.
 
-Open it, pick a number, and see what your machine can actually run across `CPU`, `GPU`, `NPU`, and
-runtime backends.
+Open it, use arrow keys or the mouse, and see what your machine can actually run across `CPU`,
+`GPU`, `NPU`, and runtime backends.
 
 ```powershell
 .\accelscope.exe
 ```
 
 ```text
-1. Inspect hardware
-2. Show OpenVINO devices
-3. Run benchmark
-4. Show model templates
-5. Show backends
-6. Help
-0. Exit
+AccelScope
+Benchmark first. Don't guess.
+
+[ Dashboard          ]  CPU / GPU / NPU summary
+[ Inspect hardware   ]  Windows hardware inventory
+[ OpenVINO devices   ]  CPU / GPU / NPU / AUTO visibility
+[ Benchmark          ]  model, device, iterations, export
+[ Models             ]  known-good model templates
+[ Backends           ]  current and planned runtimes
+[ Reports            ]  Markdown / JSON benchmark exports
 ```
 
 ## Why
@@ -28,7 +31,8 @@ Modern laptops ship with AI accelerators, but it is still weirdly hard to answer
 - Which local backend should I try first?
 - Can I export a benchmark report that other developers can compare?
 
-AccelScope gives you a practical first answer from the terminal.
+AccelScope gives you a practical first answer from the terminal. It does not assume the NPU is
+always fastest. It compares the paths on a real model and shows the result.
 
 ## Current Focus
 
@@ -46,6 +50,13 @@ Download `accelscope.exe` from the latest release, then run:
 
 ```powershell
 .\accelscope.exe
+```
+
+That opens the Textual terminal UI by default. The same UI is available from source:
+
+```powershell
+accelscope
+accelscope tui
 ```
 
 Or run from source:
@@ -86,10 +97,17 @@ real machine.
 
 ## Commands
 
-Interactive menu:
+Interactive TUI:
 
 ```powershell
 accelscope
+accelscope tui
+```
+
+Legacy number menu:
+
+```powershell
+accelscope menu --classic
 ```
 
 Inspect hardware:
@@ -102,6 +120,12 @@ Show OpenVINO devices:
 
 ```powershell
 accelscope devices
+```
+
+Run diagnostics:
+
+```powershell
+accelscope doctor
 ```
 
 Download and benchmark the default model:
@@ -157,6 +181,7 @@ See [docs/BUILD.md](docs/BUILD.md).
 ## Project Docs
 
 - [Quickstart](docs/QUICKSTART.md)
+- [Textual TUI](docs/TUI.md)
 - [Build](docs/BUILD.md)
 - [Product shape](docs/PRODUCT.md)
 - [Example benchmark](examples/benchmark-intel-core-ultra-5-125h.md)
