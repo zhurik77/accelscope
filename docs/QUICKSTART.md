@@ -3,7 +3,7 @@
 Start interactive mode:
 
 ```powershell
-.\dist\accelscope.exe
+.\accelscope.exe
 ```
 
 Then choose:
@@ -18,7 +18,7 @@ Then choose:
 Run the fastest one-command check:
 
 ```powershell
-.\dist\accelscope.exe benchmark object-detection --iterations 10 --output benchmark.md
+.\accelscope.exe benchmark object-detection --iterations 10 --output benchmark.md
 ```
 
 This command:
@@ -30,10 +30,10 @@ This command:
 Useful separate commands:
 
 ```powershell
-.\dist\accelscope.exe inspect
-.\dist\accelscope.exe devices
-.\dist\accelscope.exe backends list
-.\dist\accelscope.exe models list
+.\accelscope.exe inspect
+.\accelscope.exe devices
+.\accelscope.exe backends list
+.\accelscope.exe models list
 ```
 
 Example result from the first test laptop:

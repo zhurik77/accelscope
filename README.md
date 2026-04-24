@@ -6,7 +6,7 @@ Open it, pick a number, and see what your machine can actually run across `CPU`,
 runtime backends.
 
 ```powershell
-.\dist\accelscope.exe
+.\accelscope.exe
 ```
 
 ```text
@@ -42,10 +42,10 @@ The project is not Intel-only. The backend roadmap includes ONNX Runtime, Direct
 
 ## Quick Start
 
-Use the packaged exe:
+Download `accelscope.exe` from the latest release, then run:
 
 ```powershell
-.\dist\accelscope.exe
+.\accelscope.exe
 ```
 
 Or run from source:
